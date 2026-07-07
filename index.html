@@ -750,7 +750,7 @@ function buildSyncPayload(itv, pdfBase64 = null, pdfName = null) {
     checks: CHECKS.map((lib, i) => ({ libelle: lib, statut: f.checks[i] ?? '' })),
     lignes: itv.lignes.map((l, i) => ({ position: i + 1, libelle: ITEMS[i], statut: l.statut, commentaire: l.commentaire ?? '' })),
     
-    // Ajout des données du PDF
+    // C'EST CETTE PARTIE QUI EST CRUCIALE POUR LE MAIL :
     pdfBase64: pdfBase64,
     pdfName: pdfName
   };
