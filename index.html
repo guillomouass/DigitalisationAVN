@@ -663,8 +663,22 @@ async function loadDraft() {
   } catch {}
 }
 
-/* -------------------------------- Clôture -------------------------------- */
-$('btn-cloturer').addEventListener('click', () => {
+/* -------------------------------- Clôture & PDF -------------------------------- */
+
+// Nouveau bouton : Générer le PDF avant la clôture
+$('btn-generer-pdf').addEventListener('click', () => {
+  // On crée un objet temporaire pour l'impression
+  const tempItv = {
+    client: $('f-client').value.trim(), agence: $('f-agence').value.trim(),
+    technicien: $('f-technicien').value.trim(), date: $('f-date').value,
+    email: $('f-email').value.trim(),
+    lignes: lignes.map((l) => ({ statut: l.statut, commentaire: l.commentaire.trim() })),
+    fiche: JSON.parse(JSON.stringify(fiche))
+  };
+  imprimer(tempItv);
+});
+
+$('btn-cloturer').addEventListener('click', async () => {
   const nokVides = lignes.filter((l) => l.statut === 'NOK' && !l.commentaire.trim()).length;
   if (nokVides && !confirm(`${nokVides} ligne(s) NOK sans commentaire. Clôturer quand même ?`)) return;
 
@@ -677,30 +691,82 @@ $('btn-cloturer').addEventListener('click', () => {
     fiche: JSON.parse(JSON.stringify(fiche)),
     clotureeLe: new Date().toISOString(),
   };
+  
+  // Enregistrement dans l'historique local
   histo.unshift(itv);
   persistHisto();
 
+  // Lecture du fichier PDF joint (s'il y en a un)
+  const pdfInput = $('f-pdf-upload');
+  let pdfBase64 = null;
+  let pdfName = null;
+  
+  if (pdfInput.files.length > 0) {
+    const file = pdfInput.files[0];
+    pdfName = file.name;
+    pdfBase64 = await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.readAsDataURL(file);
+    });
+  }
+
   if (APPS_SCRIPT_URL) {
-    envoyerAuBureau(itv).then(async (ok) => {
+    // On passe le PDF à la fonction d'envoi
+    envoyerAuBureau(itv, pdfBase64, pdfName).then(async (ok) => {
       if (!ok) {
         outbox.push(itv.uuid);
         await kvSet('outbox', outbox);
         toast('warn', 'Hors-ligne : rapport en attente, envoi automatique au retour du réseau.');
+      } else {
+        toast('ok', 'Intervention clôturée et envoyée avec succès.');
       }
       updateNetBadge(); renderHisto();
     });
   }
 
+  // Nettoyage du formulaire
   kvSet('draft', null);
   lignes = ITEMS.map(() => ({ statut: 'NA', commentaire: '' }));
   fiche = defaultFiche();
   $('f-client').value = $('f-agence').value = $('f-email').value = '';
+  pdfInput.value = ''; // On vide le champ fichier
   syncFicheInputs(); syncChoices(); syncPhotos(); padSetup();
   renderItems(); renderChecks(); refresh(); renderHisto();
-
-  toast('ok', 'Intervention enregistrée. Ouverture du PDF…');
-  setTimeout(() => imprimer(itv), 400);
 });
+
+// IL FAUT AUSSI METTRE À JOUR CES DEUX FONCTIONS :
+function buildSyncPayload(itv, pdfBase64 = null, pdfName = null) {
+  const f = { ...defaultFiche(), ...(itv.fiche ?? {}) };
+  return {
+    uuid: itv.uuid, date: itv.date, clotureeLe: itv.clotureeLe,
+    client: itv.client, agence: itv.agence, technicien: itv.technicien, email: itv.email,
+    hdebut: f.hdebut, hfin: f.hfin, lieu: f.lieu, machine: f.machine,
+    type: f.type ?? '', att1: f.att1 ?? '', att2: f.att2 ?? '',
+    travaux: f.travaux, prevoir: f.prevoir,
+    pchanger: f.pchanger, pcommander: f.pcommander, comm2: f.comm2,
+    nbPhotos: PHOTO_FIELDS.reduce((n, k) => n + (f.photos?.[k]?.length ?? 0), 0),
+    signee: !!f.signature,
+    checks: CHECKS.map((lib, i) => ({ libelle: lib, statut: f.checks[i] ?? '' })),
+    lignes: itv.lignes.map((l, i) => ({ position: i + 1, libelle: ITEMS[i], statut: l.statut, commentaire: l.commentaire ?? '' })),
+    
+    // Ajout des données du PDF
+    pdfBase64: pdfBase64,
+    pdfName: pdfName
+  };
+}
+
+async function envoyerAuBureau(itv, pdfBase64 = null, pdfName = null) {
+  try {
+    await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      mode: 'no-cors', 
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(buildSyncPayload(itv, pdfBase64, pdfName)),
+    });
+    return true; 
+  } catch { return false; } 
+}
 
 /* --------------------- PDF : gabarit fidèle + impression ------------------ */
 async function imprimer(itv) {
