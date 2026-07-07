@@ -278,9 +278,17 @@ textarea.show{display:block}
   </section>
 </div>
 
-<footer class="sticky">
+<<footer class="sticky">
   <div class="progress"><i id="p-bar"></i><span id="p-txt">0/19 lignes renseignées</span></div>
-  <button class="submit" id="btn-cloturer" type="button" disabled>Clôturer l’intervention</button>
+  
+  <button class="submit" id="btn-generer-pdf" type="button" style="background: #5b6570;">1. Générer et enregistrer le PDF</button>
+  
+  <label style="font-size: 14px; font-weight: bold; text-align: center; color: #3c434b; background: #eef0f2; padding: 10px; border-radius: 8px;">
+    2. Joindre le rapport PDF : 
+    <input type="file" id="f-pdf-upload" accept="application/pdf" style="display: block; margin: 8px auto 0;">
+  </label>
+  
+  <button class="submit" id="btn-cloturer" type="button" disabled>3. Clôturer et Envoyer l'intervention</button>
 </footer>
 
 <div class="toast" id="toast"></div>
