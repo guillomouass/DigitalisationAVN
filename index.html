@@ -1752,10 +1752,25 @@ $('prm-editor').addEventListener('click', async (e) => {
     applyConfig();
     refresh();
     renderEditor();
-    toast('ok', 'Paramètres enregistrés et appliqués.');
-  }
-});
 
+    // ---> DÉBUT DE LA MODIFICATION C : Envoi vers Google Sheets
+    if (APPS_SCRIPT_URL && navigator.onLine) {
+      toast('ok', 'Paramètres enregistrés. Synchro serveur en cours...');
+      fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'saveConfig', config: config })
+      }).then(() => {
+        toast('ok', 'Paramètres mis à jour pour TOUS les techniciens !');
+      }).catch(() => {
+        toast('warn', 'Sauvegardé en local (Appareil hors-ligne).');
+      });
+    } else {
+      toast('ok', 'Paramètres enregistrés en local (Appareil hors-ligne).');
+    }
+    // ---> FIN DE LA MODIFICATION C
+  }
 /* --------------------------------- Divers -------------------------------- */
 let toastTimer;
 function toast(type, msg) {
